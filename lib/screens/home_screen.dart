@@ -17,7 +17,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Widget> _pages = const [
     MeterPage(),
-    CameraPage(),
+    SizedBox(),//CameraPage(),
     RecordsPage(),
     SettingsPage(),
   ];
@@ -40,7 +40,17 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          onTap: (index) => setState(() => _currentIndex = index),
+          onTap: (index){
+            if(index != 1){
+              setState(() => _currentIndex = index);
+            }else{
+              Navigator.of(context, rootNavigator: true).push(
+                MaterialPageRoute(
+                  builder: (context) => CameraPage(),
+                ),
+              );
+            }
+          }, //=> setState(() => _currentIndex = index),
           items: [
             BottomNavigationBarItem(
               icon: const _MeterIcon(),

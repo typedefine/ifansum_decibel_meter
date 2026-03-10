@@ -23,6 +23,9 @@ migrate_working_dir/
 # is commented out by default.
 .vscode/
 
+
+*/Podfile.lock
+
 # Flutter/Dart/Pub related
 **/doc/api/
 # iOS 相关
