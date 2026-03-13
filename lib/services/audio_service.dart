@@ -29,9 +29,9 @@ class AudioService {
     return status.isGranted;
   }
 
-  Future<void> start() async {
+  Future<bool> start() async {
     final hasPermission = await requestPermission();
-    if (!hasPermission) return;
+    if (!hasPermission) return false;
 
     _noiseMeter ??= NoiseMeter();
     _reset();
@@ -54,6 +54,7 @@ class AudioService {
         print('Noise meter error: $error');
       },
     );
+    return true;
   }
 
   void stop() {

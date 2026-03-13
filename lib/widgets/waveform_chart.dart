@@ -99,6 +99,7 @@ class WaveformChart extends StatelessWidget {
   }
 }
 
+/*
 /// Compact waveform used in record cards
 class MiniWaveformChart extends StatelessWidget {
   final List<double> data;
@@ -161,3 +162,5 @@ class MiniWaveformChart extends StatelessWidget {
     );
   }
 }
+
+ */

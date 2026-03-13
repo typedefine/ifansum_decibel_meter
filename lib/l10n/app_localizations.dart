@@ -82,12 +82,14 @@ class AppLocalizations {
   String get unlockFree => translate('unlock_free');
   String get limitTimeTitle => translate('limit_time_title');
   String get limitTimeContent => translate('limit_time_content');
+  String get limitUseTimes => translate('limit_use_times');
   String get limitTimeFree => translate('limit_time_free');
   String get limitTimeLast20s => translate('limit_time_last30s');
   String get limitTimeClose => translate('limit_time_close');
   String get editRecordName => translate('edit_record_name');
   String get editRecordNameCancel => translate('edit_record_name_cancel');
   String get editRecordNameSave => translate('edit_record_name_save');
+  String get noiseRecordPrefix => translate('noise_record_prefix');
 
   // Record Detail
   String get basicInfo => translate('basic_info');
@@ -134,7 +136,9 @@ class AppLocalizations {
   String get trialButton => translate('trial_button');
   String get trialPrice => translate('trial_price');
   String get privacyPolicy => translate('privacy_policy');
+  String get privacyPolicyFileUrl => translate('privacy_policy_url');
   String get userAgreement => translate('user_agreement');
+  String get userAgreementFileUrl => translate('user_agreement_url');
   String get restorePurchases => translate('restore_purchases');
 }
 

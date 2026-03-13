@@ -1,18 +1,23 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_new/return_code.dart';
 import '../l10n/app_localizations.dart';
 import '../models/noise_record.dart';
 import '../providers/records_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/audio_service.dart';
+import '../services/audio_recording_service.dart';
 import '../services/device_info_service.dart';
 import '../services/location_service.dart';
 import '../tool_utils.dart';
 import '../widgets/gauge_widget.dart';
 import '../widgets/waveform_chart.dart';
 import 'decibel_standard_screen.dart';
+import 'pro_subscription_page.dart';
 
 class MeterPage extends StatefulWidget {
   const MeterPage({super.key});
@@ -24,31 +29,33 @@ class MeterPage extends StatefulWidget {
 class _MeterPageState extends State<MeterPage> {
   final AudioService _audioService = AudioService();
   final LocationService _locationService = LocationService();
+  final AudioRecordingService _audioRecordingService = AudioRecordingService();
 
   bool _isRecording = false;
-  bool _isMeasuring = false;
   double _currentDb = 0.0;
   double _maxDb = 0.0;
   double _avgDb = 0.0;
   int _recordSeconds = 0;
   Timer? _timer;
   late List<double> _realtimeWaveform = [];//[0,0,0,0,0,0,0,0,0,0,0,0];
+   late List<double> _singleWaveform = [];
   String _location = '';
+  String? _currentRecordId;
+  String? _currentAudioPath;
 
   @override
   void initState() {
     super.initState();
 
     _startMeasuring();
-      final settings = Provider.of<SettingsProvider>(context, listen: false);
-      if(settings.autoRecord){
-        _toggleRecording();
-      }
-    _fetchLocation();
+    // _fetchLocation();
   }
 
   Future<void> _fetchLocation() async {
     _location = await _locationService.getCurrentLocation();
+    // if (mounted) {
+    //   setState(() {});
+    // }
   }
 
   Future<void> _startMeasuring() async {
@@ -65,6 +72,7 @@ class _MeterPageState extends State<MeterPage> {
           lastTime = now;
           setState(() {
             _realtimeWaveform.add(db);
+            _singleWaveform.add(db);
           });
         }
       }
@@ -82,21 +90,30 @@ class _MeterPageState extends State<MeterPage> {
     //   }
     // };
 
-    await _audioService.start();
-    _isMeasuring = true;
-  }
+    bool r = await _audioService.start();
 
-  void _toggleRecording() {
-    if (_isRecording) {
-      _stopRecording();
-    } else {
-      _startRecording();
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+    if(settings.autoRecord && r){
+      // _toggleRecording();
+      await _startRecording();
     }
   }
 
-  void _startRecording() {
+  Future<void> _toggleRecording() async {
+    if (_isRecording) {
+      await _stopRecording();
+    } else {
+      await _startRecording();
+    }
+  }
+
+  Future<void> _startRecording() async {
+    final id = const Uuid().v4();
+    _currentRecordId = id;
+    await _audioRecordingService.startRecording(id);
     _audioService.resetStats();
     // _realtimeWaveform.clear();
+    _singleWaveform.clear();
     if(_realtimeWaveform.isEmpty){
       _realtimeWaveform = [0,0,0,0,0,0,0,0,0,
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
@@ -105,7 +122,6 @@ class _MeterPageState extends State<MeterPage> {
         0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
         ,0,0,0,0,0,0,0,0,0,0,0];
     }
-
 
     _recordSeconds = 0;
 
@@ -120,20 +136,28 @@ class _MeterPageState extends State<MeterPage> {
     setState(() {
       _isRecording = true;
     });
+
+    _fetchLocation();
   }
 
-  void _stopRecording() {
+  Future<void> _stopRecording({bool autoStop = false}) async {
     _timer?.cancel();
     _timer = null;
     setState(() {
       _isRecording = false;
     });
+    _currentAudioPath = await _audioRecordingService.stopRecording();
+    if(!autoStop){
+      await _audioRecordingService.discardCurrent();
+    }
   }
 
   void _resetMeasurement() {
     _audioService.resetStats();
     // _realtimeWaveform.clear();
+    _singleWaveform.clear();
     _realtimeWaveform.add(0.0);
+    _singleWaveform.add(0.0);
     _recordSeconds = 0;
     setState(() {
       _currentDb = 0.0;
@@ -147,118 +171,128 @@ class _MeterPageState extends State<MeterPage> {
     final settings = context.read<SettingsProvider>();
     final l10n = AppLocalizations.of(context);
 
-    if(!settings.isPro && _recordSeconds > 20){
-      await showDialog<String>(
+    // Ensure file is finalized before saving.
+    if (_isRecording) {
+      await _stopRecording(autoStop: true);
+    }
+
+    if (!settings.isPro && _recordSeconds > 20) {
+      // final choice =
+      await showDialog<_LongSaveChoice>(
         context: context,
         builder: (context) => AlertDialog(
-          backgroundColor: Colors.white,
-          title:
-          Container(
-            height: 30,
-            child: Center(
-              child:
-          Text(l10n.limitTimeTitle,
-              style: const TextStyle(
-                  color: Colors.black,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold)
+          backgroundColor: const Color(0xFF2C2C2E),
+          title: Text(
+            l10n.limitTimeTitle,
+            style: const TextStyle(color: Colors.white),
           ),
-            )),
-          content:
-          Container(
-            height: 60,
-            child: Center(
-              child:
-              Text(l10n.limitTimeContent,
-                  style: const TextStyle(color: Colors.black, fontSize: 14)
-              ),
-            ),
+          content: Text(
+            '${l10n.limitTimeContent}\n\n${l10n.limitUseTimes}${settings.longRecordingTrialRemaining}',//Remaining usable times:
+            style: const TextStyle(color: Colors.white70, fontSize: 14),
           ),
           actions: [
-            GestureDetector(
-              onTap: (){
+            TextButton(
+              onPressed: (){
                 Navigator.pop(context);
-                _saveData(context);
-              },
-              child: Container(
-                height: 50,
-                width: 260,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF00BCD4),
-                  borderRadius: BorderRadius.circular(25)
-                ),
-                child: Center(
-                  child: Text(
-                    l10n.limitTimeFree,
-                    style: const TextStyle(fontSize: 14, color: Colors.white),
-                  ),
-                ),
+                _cancelAndDeleteRecord();
+              },//=> Navigator.pop(context, _LongSaveChoice.cancel)
+              child: Text(
+                l10n.limitTimeClose,
+                style: const TextStyle(color: Colors.grey),
               ),
             ),
-
-            const SizedBox(height: 15,),
-
-            GestureDetector(
-              onTap: (){
-                Navigator.pop(context);
-                if(_recordSeconds > 20 && _realtimeWaveform.length > 30){
-
-                }
-                _saveData(context);
-              },
-              child: Container(
-                height: 50,
-                width: 260,
-                decoration: BoxDecoration(
-                    color: Colors.black12,
-                    borderRadius: BorderRadius.circular(25)
-                ),
-                child: Center(child: Text(
-                  l10n.limitTimeLast20s,
-                  style: const TextStyle(fontSize: 14, color: Colors.black),
-                )),
+            TextButton(
+              onPressed: (){
+                _saveLast20Seconds(context);
+              },//=> Navigator.pop(context, _LongSaveChoice.last20)
+              child: Text(
+                l10n.limitTimeLast20s,
+                style: const TextStyle(color: Color(0xFF00BCD4)),
               ),
             ),
-
-            const SizedBox(height: 15,),
-
-            GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                height: 50,
-                width: 260,
-                decoration: BoxDecoration(
-                    color: Colors.black12,
-                    borderRadius: BorderRadius.circular(25)
-                ),
-                child: Center(child:Text(
-                  l10n.limitTimeClose,
-                  style: const TextStyle(fontSize: 14, color: Colors.black),),
-                ),),
-            )
-
+            TextButton(
+              onPressed: (){
+                _freeTrial(context);
+              },//=> Navigator.pop(context, _LongSaveChoice.freeTrial)
+              child: Text(
+                l10n.limitTimeFree,
+                style: const TextStyle(color: Color(0xFF00BCD4)),
+              ),
+            ),
           ],
         ),
       );
+
+       /*
+
+      if (choice == null || choice == _LongSaveChoice.cancel) {
+        // await _audioRecordingService.discardCurrent();
+        // await _audioRecordingService.discardAtPath(_currentAudioPath);
+        // _currentAudioPath = null;
+        // _currentRecordId = null;
+        // _resetMeasurement();
+        _cancelAndDeleteRecord();
+        return;
+      }
+
+      // if (choice == _LongSaveChoice.freeTrial) {
+      //   if (settings.longRecordingTrialRemaining <= 0) {
+      //     if (context.mounted) {
+      //       Navigator.of(context).push(
+      //         MaterialPageRoute(
+      //           builder: (_) => const ProSubscriptionPage(),
+      //         ),
+      //       );
+      //     }
+      //     return;
+      //   }
+      //   await settings.incrementLongRecordingTrialUsed();
+      //   await _saveData(context);
+      //   return;
+      // }
+
+      await _saveLast20Seconds(context);
+      return;
+      */
     }else{
-      _saveData(context);
+      await _saveData(context);
     }
   }
 
-  Future<void> _saveData(BuildContext context) async {
+  Future<void> _freeTrial(BuildContext context) async{
+    final settings = context.read<SettingsProvider>();
+    if (settings.longRecordingTrialRemaining <= 0) {
+      if (context.mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => const ProSubscriptionPage(),
+          ),
+        );
+      }
+      return;
+    }
+    // else{
+    //   Navigator.pop(context);
+    // }
+    await settings.incrementLongRecordingTrialUsed();
+    await _saveData(context, isNotProAndOver20s: true);
+    return;
+  }
+
+  Future<void> _saveData(BuildContext context,{bool isNotProAndOver20s = false}) async {
     int i=0;
-    for (; i<_realtimeWaveform.length;i++) {
-      var e = _realtimeWaveform[i];
+    for (; i<_singleWaveform.length;i++) {
+      var e = _singleWaveform[i];
       if(e != 0){
         break;
       }
     }
-    _realtimeWaveform.removeRange(0, i);
+    _singleWaveform.removeRange(0, i);
 
     final settings = context.read<SettingsProvider>();
-    final l10n = AppLocalizations.of(context);
     final records = context.read<RecordsProvider>();
-    String name = '${l10n.translate("noise_record_prefix")} ${records.records.length + 1}';
+    /*
+    String name = '${l10n.noiseRecordPrefix} ${records.records.length + 1}';
     final controller = TextEditingController(text: name);
     final result = await showDialog<String>(
       context: context,
@@ -293,6 +327,9 @@ class _MeterPageState extends State<MeterPage> {
         ],
       ),
     );
+    */
+
+    String? result = await _noiseNameInput(context);
 
     if (result != null && result.isNotEmpty) {
       //   setState(() {
@@ -301,9 +338,10 @@ class _MeterPageState extends State<MeterPage> {
       //   context.read<RecordsProvider>().updateRecord(_record);
 
       final deviceInfo = await DeviceInfoService.getDeviceString();
+      final recordId = _currentRecordId ?? const Uuid().v4();
 
       final record = NoiseRecord(
-        id: const Uuid().v4(),
+        id: recordId,
         name: result,
         createdAt: DateTime.now(),
         durationSeconds: _recordSeconds,
@@ -316,29 +354,256 @@ class _MeterPageState extends State<MeterPage> {
         minDecibel: _audioService.minDecibel,
         avgDecibel: _audioService.avgDecibel,
         peakValue: _audioService.peakDecibel,
-        waveformData: List.from(_realtimeWaveform),
+        waveformData: List.from(_singleWaveform),
+        audioFilePath: _currentAudioPath,
       );
 
       await records.addRecord(record);
 
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${l10n.records} saved',
-              style: const TextStyle(color: Colors.white),
-            ),
-            backgroundColor: const Color(0xFF2C2C2E),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
+      _afterSaveData(context, isOver20s: isNotProAndOver20s);
 
-      _resetMeasurement();
+      // if (mounted) {
+      //   ScaffoldMessenger.of(context).showSnackBar(
+      //     SnackBar(
+      //       content: Text(
+      //         '${l10n.records} saved',
+      //         style: const TextStyle(color: Colors.white),
+      //       ),
+      //       backgroundColor: const Color(0xFF2C2C2E),
+      //       duration: const Duration(seconds: 2),
+      //     ),
+      //   );
+      // }
+      //
+      // _resetMeasurement();
+    } else {
+      // User cancelled saving: remove audio file to avoid affecting next recording.
+      // await _audioRecordingService.discardCurrent();
+      // await _audioRecordingService.discardAtPath(_currentAudioPath);
+      // _currentAudioPath = null;
+      // _currentRecordId = null;
+      // _resetMeasurement();
+      if(!isNotProAndOver20s){
+        await _cancelAndDeleteRecord();
+      }
     }
   }
 
+  void _afterSaveData(BuildContext context, {bool isOver20s = false}){
 
+    if(isOver20s){
+      Navigator.pop(context);
+    }
+
+    final l10n = AppLocalizations.of(context);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${l10n.records} saved',
+            style: const TextStyle(color: Colors.white),
+          ),
+          backgroundColor: const Color(0xFF2C2C2E),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+
+    _resetMeasurement();
+  }
+
+  Future<String?> _noiseNameInput(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
+    final records = context.read<RecordsProvider>();
+    String name = '${l10n.noiseRecordPrefix} ${records.records.length + 1}';
+    final controller = TextEditingController(text: name);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2C2C2E),
+        title:
+        Text(l10n.editRecordName,//'Edit Name'
+            style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.grey),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Color(0xFF00BCD4)),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.editRecordNameCancel,//'Cancel'
+                style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: Text(l10n.editRecordNameSave,//'Save'
+                style: TextStyle(color: Color(0xFF00BCD4))),
+          ),
+        ],
+      ),
+    );
+    return result;
+  }
+
+  Future<void> _cancelAndDeleteRecord() async{
+    // User cancelled saving: remove audio file to avoid affecting next recording.
+    // await _audioRecordingService.discardCurrent();
+    await _audioRecordingService.discardAtPath(_currentAudioPath);
+    _currentAudioPath = null;
+    _currentRecordId = null;
+    _resetMeasurement();
+  }
+
+  Future<void> _saveLast20Seconds(BuildContext context) async {
+    final totalSeconds = _recordSeconds <= 0 ? 1 : _recordSeconds;
+    final pointsPerSecond = _realtimeWaveform.isEmpty
+        ? 1.0
+        : (_realtimeWaveform.length / totalSeconds);
+    final lastPoints =
+        (pointsPerSecond * 20).round().clamp(1, _realtimeWaveform.length);
+
+    final trimmedWaveform = _realtimeWaveform.isEmpty
+        ? <double>[]
+        : _realtimeWaveform.sublist(_realtimeWaveform.length - lastPoints);
+
+    final originalPath = _currentAudioPath;
+    final trimmedAudioPath = await _trimAudioToLast20Seconds(originalPath);
+
+    final settings = context.read<SettingsProvider>();
+    final records = context.read<RecordsProvider>();
+
+    /*
+    String name =
+        '${l10n.noiseRecordPrefix} ${records.records.length + 1}';
+    final controller = TextEditingController(text: name);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2C2C2E),
+        title: Text(l10n.editRecordName,
+            style: const TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: controller,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.grey),
+            ),
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Color(0xFF00BCD4)),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(l10n.editRecordNameCancel,
+                style: const TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: Text(l10n.editRecordNameSave,
+                style: const TextStyle(color: Color(0xFF00BCD4))),
+          ),
+        ],
+      ),
+    );
+    */
+
+    String? result = await _noiseNameInput(context);
+    if (result == null || result.isEmpty) {
+      // await _audioRecordingService.discardCurrent();
+      // await _audioRecordingService.discardAtPath(_currentAudioPath);
+      // _currentAudioPath = null;
+      // _currentRecordId = null;
+      // _resetMeasurement();
+      // await _cancelAndDeleteRecord();
+      return;
+    }
+
+    final deviceInfo = await DeviceInfoService.getDeviceString();
+    final recordId = _currentRecordId ?? const Uuid().v4();
+
+    final maxDb =
+        trimmedWaveform.isEmpty ? 0.0 : trimmedWaveform.reduce((a, b) => a > b ? a : b);
+    final minDb =
+        trimmedWaveform.isEmpty ? 0.0 : trimmedWaveform.reduce((a, b) => a < b ? a : b);
+    final avgDb = trimmedWaveform.isEmpty
+        ? 0.0
+        : trimmedWaveform.reduce((a, b) => a + b) / trimmedWaveform.length;
+
+    final record = NoiseRecord(
+      id: recordId,
+      name: result,
+      createdAt: DateTime.now(),
+      durationSeconds: 20,
+      deviceInfo: deviceInfo,
+      location: _location,
+      frequencyWeighting: settings.frequencyWeighting,
+      responseTimeMs: settings.responseFrequencyMs,
+      calibration: settings.calibration,
+      maxDecibel: maxDb,
+      minDecibel: minDb,
+      avgDecibel: avgDb,
+      peakValue: maxDb,
+      waveformData: List.from(trimmedWaveform),
+      audioFilePath: trimmedAudioPath,
+    );
+
+    await records.addRecord(record);
+
+    // if (mounted) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     SnackBar(
+    //       content: Text(
+    //         '${l10n.records} saved',
+    //         style: const TextStyle(color: Colors.white),
+    //       ),
+    //       backgroundColor: const Color(0xFF2C2C2E),
+    //       duration: const Duration(seconds: 2),
+    //     ),
+    //   );
+    // }
+    //
+    // _resetMeasurement();
+
+    _afterSaveData(context, isOver20s: true);
+  }
+
+  Future<String?> _trimAudioToLast20Seconds(String? inputPath) async {
+    if (inputPath == null) return null;
+    try {
+      final inFile = File(inputPath);
+      if (!await inFile.exists()) return inputPath;
+
+      final outPath = inputPath.replaceFirst('.m4a', '_trim.m4a');
+
+      final cmd =
+          '-hide_banner -y -sseof -20 -i "$inputPath" -t 20 -c:a aac -b:a 128k "$outPath"';
+      final session = await FFmpegKit.execute(cmd);
+      final rc = await session.getReturnCode();
+      if (ReturnCode.isSuccess(rc)) {
+        try {
+          await inFile.delete();
+        } catch (_) {}
+        final outFile = File(outPath);
+        if (await outFile.exists()) {
+          // Keep file name aligned with record id by restoring original path.
+          await outFile.rename(inputPath);
+          return inputPath;
+        }
+      }
+    } catch (_) {}
+    return inputPath;
+  }
 
   String get _formattedTime {
     final minutes = _recordSeconds ~/ 60;
@@ -643,3 +908,5 @@ class _ControlButton extends StatelessWidget {
     );
   }
 }
+
+enum _LongSaveChoice { freeTrial, last20, cancel }

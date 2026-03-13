@@ -1,10 +1,21 @@
 import 'dart:async';
-import 'package:flutter/material.dart';
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:camera/camera.dart';
+import 'package:ffmpeg_kit_flutter_new/ffmpeg_kit.dart';
+import 'package:ffmpeg_kit_flutter_new/return_code.dart';
+import 'package:flutter/material.dart';
+import 'package:image/image.dart' as img;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
+import 'package:saver_gallery/saver_gallery.dart';
+
 import '../l10n/app_localizations.dart';
+import '../providers/settings_provider.dart';
 import '../services/audio_service.dart';
 import '../services/location_service.dart';
+import 'pro_subscription_page.dart';
 
 class CameraPage extends StatefulWidget {
   const CameraPage({super.key});
@@ -35,6 +46,8 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   Timer? _timer;
   String _location = '';
   DateTime _startTime = DateTime.now();
+
+  static const int _nonProMediaLimit = 5;
 
   @override
   void initState() {
@@ -76,7 +89,7 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
     final cameraStatus = await Permission.camera.request();
     final micStatus = await Permission.microphone.request();
 
-    if (!cameraStatus.isGranted) return;//&& micStatus.isGranted
+    if (!cameraStatus.isGranted || !micStatus.isGranted) return;
 
     _cameras = await availableCameras();
     if (_cameras.isEmpty) return;
@@ -156,15 +169,41 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       return;
     }
 
+    final settings = context.read<SettingsProvider>();
+    if (!settings.isPro && settings.mediaSaveCount >= _nonProMediaLimit) {
+      _showMediaLimitDialog();
+      return;
+    }
+
     try {
-      final image = await _cameraController!.takePicture();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Photo saved: ${image.path}'),
-            backgroundColor: const Color(0xFF2C2C2E),
-          ),
+      if (_location.isEmpty) {
+        await _fetchLocation();
+      }
+      final rawImage = await _cameraController!.takePicture();
+      final watermarkedPath = await _addWatermarkToPhoto(rawImage.path);
+
+      if (watermarkedPath != null) {
+        final ok = await _ensureGalleryPermission();
+        if (!ok) return;
+
+        final bytes = await File(watermarkedPath).readAsBytes();
+        final result = await SaverGallery.saveImage(
+          bytes,
+          fileName: 'decibel_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          skipIfExists: false,
         );
+        if (result.isSuccess) {
+          await settings.incrementMediaSaveCount();
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Photo saved'),
+              backgroundColor: const Color(0xFF2C2C2E),
+            ),
+          );
+        }
       }
     } catch (e) {
       print('Take photo error: $e');
@@ -176,14 +215,34 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
       return;
     }
 
+    final settings = context.read<SettingsProvider>();
+    if (!settings.isPro && settings.mediaSaveCount >= _nonProMediaLimit) {
+      _showMediaLimitDialog();
+      return;
+    }
+
     if (_isRecordingVideo) {
       try {
         final video = await _cameraController!.stopVideoRecording();
         setState(() => _isRecordingVideo = false);
         if (mounted) {
+          final ok = await _ensureGalleryPermission();
+          if (!ok) return;
+
+          final watermarkedPath = await _burnWatermarkOnVideo(video.path);
+          final result = await SaverGallery.saveFile(
+            filePath: watermarkedPath ?? video.path,
+            fileName:
+                'decibel_video_${DateTime.now().millisecondsSinceEpoch}.mp4',
+            skipIfExists: false,
+          );
+          if (result.isSuccess) {
+            await settings.incrementMediaSaveCount();
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Video saved: ${video.path}'),
+              content: Text('Video saved'),
               backgroundColor: const Color(0xFF2C2C2E),
             ),
           );
@@ -245,6 +304,154 @@ class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
     _audioService.dispose();
     _timer?.cancel();
     super.dispose();
+  }
+
+  Future<String?> _addWatermarkToPhoto(String path) async {
+    try {
+      final bytes = await File(path).readAsBytes();
+      final original = img.decodeImage(bytes);
+      if (original == null) return null;
+
+      final image = img.copyResize(
+        original,
+        width: original.width,
+        height: original.height,
+      );
+
+      final text =
+          '${_currentDb.toStringAsFixed(1)} dB · $_location · $_formattedDateTime';
+
+      img.drawString(
+        image,
+        text,
+        font: img.arial24,
+        x: 16,
+        y: image.height - 40,
+        color: img.ColorRgb8(255, 255, 255),
+      );
+
+      final outBytes = Uint8List.fromList(img.encodeJpg(image, quality: 90));
+      final file = File(path);
+      await file.writeAsBytes(outBytes, flush: true);
+      return file.path;
+    } catch (e) {
+      print('Watermark error: $e');
+      return null;
+    }
+  }
+
+  void _showMediaLimitDialog() {
+    final l10n = AppLocalizations.of(context);
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF2C2C2E),
+        title: Text(
+          l10n.freeTrialTitle,
+          style: const TextStyle(color: Colors.white),
+        ),
+        content: Text(
+          l10n.featureUnlimitedPhotos,
+          style: const TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const ProSubscriptionPage(),
+                ),
+              );
+            },
+            child: Text(
+              l10n.freeTrial,
+              style: const TextStyle(color: Color(0xFF00BCD4)),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text(
+              'OK',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<bool> _ensureGalleryPermission() async {
+    // iOS: photosAddOnly is sufficient for saving.
+    // Android 13+: photos/videos permissions may be required; older versions use storage.
+    try {
+      final status = await Permission.photosAddOnly.request();
+      if (status.isGranted || status.isLimited) return true;
+    } catch (_) {}
+
+    try {
+      final status = await Permission.photos.request();
+      if (status.isGranted || status.isLimited) return true;
+    } catch (_) {}
+
+    try {
+      final status = await Permission.storage.request();
+      return status.isGranted;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<String?> _burnWatermarkOnVideo(String inputPath) async {
+    try {
+      final inFile = File(inputPath);
+      if (!await inFile.exists()) return null;
+
+      if (_location.isEmpty) {
+        await _fetchLocation();
+      }
+
+      final text =
+          '${_currentDb.toStringAsFixed(1)} dB  $_location  $_formattedDateTime';
+      final safeText = text
+          .replaceAll('\\', '\\\\')
+          .replaceAll(':', '\\:')
+          .replaceAll("'", "\\'")
+          .replaceAll('%', '\\%');
+
+      final fontFile = await _pickFontFile();
+      if (fontFile == null) return null;
+
+      final outPath = inputPath.replaceFirst('.mp4', '_wm.mp4');
+      final cmd =
+          '-hide_banner -y -i "$inputPath" -vf "drawtext=fontfile=$fontFile:text=\'$safeText\':fontcolor=white:fontsize=24:x=16:y=h-60:box=1:boxcolor=black@0.35:boxborderw=10" -c:a copy -c:v libx264 -preset ultrafast -crf 23 "$outPath"';
+
+      final session = await FFmpegKit.execute(cmd);
+      final rc = await session.getReturnCode();
+      if (ReturnCode.isSuccess(rc)) {
+        return outPath;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<String?> _pickFontFile() async {
+    try {
+      if (Platform.isAndroid) {
+        const p = '/system/fonts/Roboto-Regular.ttf';
+        if (await File(p).exists()) return p;
+      }
+      if (Platform.isIOS) {
+        const candidates = [
+          '/System/Library/Fonts/Supplemental/Arial.ttf',
+          '/System/Library/Fonts/Supplemental/Helvetica.ttf',
+        ];
+        for (final p in candidates) {
+          if (await File(p).exists()) return p;
+        }
+      }
+    } catch (_) {}
+    return null;
   }
 
   @override

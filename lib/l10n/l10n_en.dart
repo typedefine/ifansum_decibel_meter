@@ -52,6 +52,7 @@ const Map<String, String> l10nEn = {
   'unlock_free': 'Unlock Free',
   'limit_time_title': 'Recording Duration Limit',
   'limit_time_content': '  Duration exceeding 20 seconds is restricted, Upgrade to the Professional Edition to use it without any limit.',
+  'limit_use_times':'Remaining usable times:',
   'limit_time_free': 'Free Trial',
   'limit_time_last30s': 'Save the Last 20 Seconds',
   'limit_time_close': 'Close',
@@ -105,6 +106,8 @@ const Map<String, String> l10nEn = {
   'trial_button': 'Free Trial 3 Days',
   'trial_price': 'Then \u00a528/month, cancel anytime',
   'privacy_policy': 'Privacy Policy',
+  'privacy_policy_url':'privacy-policy-en.html',
   'user_agreement': 'User Agreement',
+  'user_agreement_url': 'terms-of-service-en.html',
   'restore_purchases': 'Restore Purchases',
 };

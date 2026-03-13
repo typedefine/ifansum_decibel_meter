@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:ifansum_decibel_meter/providers/settings_provider.dart';
+import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
 import 'meter_page.dart';
 import 'camera_page.dart';
@@ -13,7 +15,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _currentIndex = 0;
+  // int _currentIndex = 0;
 
   final List<Widget> _pages = const [
     MeterPage(),
@@ -25,11 +27,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final settings = context.watch<SettingsProvider>();
 
     return Scaffold(
       resizeToAvoidBottomInset: false,
       body: IndexedStack(
-        index: _currentIndex,
+        index: settings.curPageIndex,//_currentIndex,
         children: _pages,
       ),
       bottomNavigationBar: Container(
@@ -39,10 +42,12 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
         child: BottomNavigationBar(
-          currentIndex: _currentIndex,
+          currentIndex: settings.curPageIndex,//_currentIndex,
           onTap: (index){
+            settings.setCurPageIndex(index);
             if(index != 1){
-              setState(() => _currentIndex = index);
+              // setState(() => _currentIndex = index);
+              // setState(() {});
             }else{
               Navigator.of(context, rootNavigator: true).push(
                 MaterialPageRoute(

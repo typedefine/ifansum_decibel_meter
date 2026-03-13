@@ -16,6 +16,17 @@ class SettingsProvider extends ChangeNotifier {
   bool _isPro = false;
   bool get isPro => _isPro;
 
+  int _curPageIndex = 0;
+  int get curPageIndex => _curPageIndex;
+
+  // How many times photos/videos have been saved for non-pro users.
+  int _mediaSaveCount = 0;
+  int get mediaSaveCount => _mediaSaveCount;
+
+  // For non-pro users: allow 3 full saves when recording > 20s.
+  int _longRecordingTrialUsed = 0;
+  int get longRecordingTrialUsed => _longRecordingTrialUsed;
+
   // Response frequency in milliseconds
   int _responseFrequencyMs = 500;
   int get responseFrequencyMs => _responseFrequencyMs;
@@ -45,6 +56,8 @@ class SettingsProvider extends ChangeNotifier {
         _locale = const Locale('zh', 'CN');
     }
     _isPro = _prefs.getBool('is_pro') ?? false;
+    _mediaSaveCount = _prefs.getInt('media_save_count') ?? 0;
+    _longRecordingTrialUsed = _prefs.getInt('long_recording_trial_used') ?? 0;
     _responseFrequencyMs = _prefs.getInt('response_frequency_ms') ?? 500;
     _autoRecord = _prefs.getBool('auto_record') ?? true;
     _frequencyWeighting = _prefs.getString('frequency_weighting') ?? 'A';
@@ -67,6 +80,28 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setIsPro(bool value) async {
     _isPro = value;
     await _prefs.setBool('is_pro', value);
+    notifyListeners();
+  }
+
+  Future<void> setCurPageIndex(int index) async {
+    _curPageIndex = index;
+    notifyListeners();
+  }
+
+  Future<void> incrementMediaSaveCount() async {
+    _mediaSaveCount += 1;
+    await _prefs.setInt('media_save_count', _mediaSaveCount);
+    notifyListeners();
+  }
+
+  int get longRecordingTrialRemaining {
+    final remaining = 3 - _longRecordingTrialUsed;
+    return remaining < 0 ? 0 : remaining;
+  }
+
+  Future<void> incrementLongRecordingTrialUsed() async {
+    _longRecordingTrialUsed += 1;
+    await _prefs.setInt('long_recording_trial_used', _longRecordingTrialUsed);
     notifyListeners();
   }
 

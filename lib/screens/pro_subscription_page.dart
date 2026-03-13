@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+
 import '../l10n/app_localizations.dart';
-import '../providers/settings_provider.dart';
+import '../services/local_html_webview.dart';
+import '../services/subscription_service.dart';
 
 class ProSubscriptionPage extends StatelessWidget {
   const ProSubscriptionPage({super.key});
@@ -122,19 +123,10 @@ class ProSubscriptionPage extends StatelessWidget {
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: () {
-                              // In production, trigger IAP flow
-                              // For now, just toggle pro
-                              context
-                                  .read<SettingsProvider>()
-                                  .setIsPro(true);
-                              Navigator.of(context).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Pro activated!'),
-                                  backgroundColor: Color(0xFF2C2C2E),
-                                ),
-                              );
+                            onPressed: () async {
+                              await SubscriptionService.instance.init();
+                              await SubscriptionService.instance
+                                  .buySubscription();
                             },
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF00E5CC),
@@ -175,7 +167,13 @@ class ProSubscriptionPage extends StatelessWidget {
                           children: [
                             GestureDetector(
                               onTap: () {
-                                // Open privacy policy
+                                // Open privacy policy (to be implemented)
+                                Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                        builder: (_) =>LocalHtmlViewer(
+                                            title: l10n.privacyPolicy,
+                                            fileName: l10n.privacyPolicyFileUrl
+                                        )));
                               },
                               child: Text(
                                 l10n.privacyPolicy,
@@ -187,7 +185,13 @@ class ProSubscriptionPage extends StatelessWidget {
                             ),
                             GestureDetector(
                               onTap: () {
-                                // Open user agreement
+                                // Open user agreement (to be implemented)
+                                Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                        builder: (_)=> LocalHtmlViewer(
+                                            title: l10n.userAgreement,
+                                            fileName: l10n.userAgreementFileUrl
+                                        )));
                               },
                               child: Text(
                                 l10n.userAgreement,
@@ -199,7 +203,8 @@ class ProSubscriptionPage extends StatelessWidget {
                             ),
                             GestureDetector(
                               onTap: () {
-                                // Restore purchases
+                                SubscriptionService.instance
+                                    .restorePurchases();
                               },
                               child: Text(
                                 l10n.restorePurchases,

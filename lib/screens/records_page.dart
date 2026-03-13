@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
 import '../l10n/app_localizations.dart';
+import '../models/noise_record.dart';
 import '../providers/records_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/audio_player_service.dart';
 import '../widgets/record_card.dart';
 import 'record_detail_page.dart';
 import 'pro_subscription_page.dart';
@@ -15,6 +18,24 @@ class RecordsPage extends StatefulWidget {
 }
 
 class _RecordsPageState extends State<RecordsPage> {
+  final AudioPlayer _player = AudioPlayerService.instance.player;
+  String? _playingRecordId;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+
+  @override
+  void dispose() {
+    // TODO: implement dispose
+    stop();
+    super.dispose();
+  }
+
+  void stop(){
+    if(_player.playing){
+      _player.pause();
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -24,6 +45,79 @@ class _RecordsPageState extends State<RecordsPage> {
         records.loadRecords();
       }
     });
+
+    _player.positionStream.listen((pos) {
+      // if (!mounted) return;
+      // setState(() {
+      //   _position = pos;
+      // });
+      positionChanged(pos);
+    });
+    _player.durationStream.listen((dur) {
+      if (!mounted) return;
+      setState(() {
+        _duration = dur ?? Duration.zero;
+      });
+    });
+    _player.playerStateStream.listen((state) {
+      // if (!mounted) return;
+      // setState(() {
+      //   _position = Duration.zero;
+      // });
+      stateChanged(state);
+    });
+  }
+
+  void stateChanged(PlayerState state){
+    if (!mounted) return;
+    setState(() {
+      _position = Duration.zero;
+      if (_player.playing && state.processingState == ProcessingState.completed) {
+        _player.pause();
+      }
+    });
+  }
+
+  void positionChanged(Duration p){
+    if (!mounted) return;
+    setState(() {
+      // _playingRecordId = id;
+      // if(_playingRecordId == id){
+        _position = p;
+      // }
+    });
+  }
+
+  Future<void> _togglePlayRecord(NoiseRecord record) async {
+    final path = record.audioFilePath;
+    if (path == null) return;
+
+    // if (_playingRecordId == record.id && _player.playing) {
+    //   await _player.pause();
+    //   return;
+    // }
+    //
+    // // if (_playingRecordId != record.id) {
+    //   _playingRecordId = record.id;
+    //   _position = Duration.zero;
+    //   _duration = Duration.zero;
+    //   await _player.setFilePath(path);
+    // // }
+    // await _player.play();
+
+    if (_playingRecordId == record.id) {
+      if(_player.playing){
+        await _player.pause();
+      }else{
+        await _player.play();
+      }
+    }else{
+      _playingRecordId = record.id;
+      _position = Duration.zero;
+      _duration = Duration.zero;
+      await _player.setFilePath(path);
+      await _player.play();
+    }
   }
 
   @override
@@ -33,6 +127,11 @@ class _RecordsPageState extends State<RecordsPage> {
     final settings = context.watch<SettingsProvider>();
     final isPro = settings.isPro;
     final allRecords = records.records;
+
+    // bool isInCurPage = Provider.of<SettingsProvider>(context, listen:true).curPageIndex == 2;
+    if(settings.curPageIndex != 2){//!isInCurPage
+      stop();
+    }
 
     return SafeArea(
       child: Stack(
@@ -73,76 +172,22 @@ class _RecordsPageState extends State<RecordsPage> {
                     physics: !isPro && allRecords.length > 3 ?
                     NeverScrollableScrollPhysics():AlwaysScrollableScrollPhysics(),
                     itemCount: allRecords.length,
-                    //allRecords.length + (!isPro && allRecords.length > 3 ? 1 : 0),
                     itemBuilder: (context, index) {
-                      // Show unlock banner after 3rd item for non-pro
-                      // if (!isPro && index == allRecords.length &&
-                      //     allRecords.length >= 3) {
-                      //   return _buildUnlockBanner(context, l10n);
-                      // }
-
-                      // if (!isPro && allRecords.length > 3 && index >= 3) {
-                      //   // For items beyond 3, show locked state
-                      //   if (index < allRecords.length) {
-                      //     return Stack(
-                      //       children: [
-                      //         RecordCard(
-                      //           record: allRecords[index],
-                      //           isLocked: true,
-                      //         ),
-                      //         if (index == 3)
-                      //           Positioned.fill(
-                      //             child: Center(
-                      //               child: Column(
-                      //                 mainAxisAlignment:
-                      //                     MainAxisAlignment.center,
-                      //                 children: [
-                      //                   Text(
-                      //                     l10n.nonProLimit,
-                      //                     style: const TextStyle(
-                      //                       color: Colors.white,
-                      //                       fontSize: 14,
-                      //                       fontWeight: FontWeight.w500,
-                      //                     ),
-                      //                   ),
-                      //                   const SizedBox(height: 12),
-                      //                   ElevatedButton(
-                      //                     onPressed: () =>
-                      //                         _openProPage(context),
-                      //                     style: ElevatedButton.styleFrom(
-                      //                       backgroundColor:
-                      //                           const Color(0xFF00E5CC),
-                      //                       foregroundColor: Colors.black,
-                      //                       shape: RoundedRectangleBorder(
-                      //                         borderRadius:
-                      //                             BorderRadius.circular(24),
-                      //                       ),
-                      //                       padding: const EdgeInsets
-                      //                           .symmetric(
-                      //                           horizontal: 32,
-                      //                           vertical: 12),
-                      //                     ),
-                      //                     child: Text(
-                      //                       l10n.unlockFree,
-                      //                       style: const TextStyle(
-                      //                         fontWeight: FontWeight.w600,
-                      //                       ),
-                      //                     ),
-                      //                   ),
-                      //                 ],
-                      //               ),
-                      //             ),
-                      //           ),
-                      //       ],
-                      //     );
-                      //   }
-                      //   return const SizedBox.shrink();
-                      // }
-
                       final record = allRecords[index];
+                      final canModify =
+                          isPro || index < 3; // non-pro: only first 3 items
+                      final isPlaying =
+                          _playingRecordId == record.id && _player.playing;
+                      final progress = (_playingRecordId == record.id &&
+                              _duration.inMilliseconds > 0)
+                          ? (_position.inMilliseconds /
+                              _duration.inMilliseconds)
+                          : null;
                       return Dismissible(
                         key: Key(record.id),
-                        direction: DismissDirection.endToStart,
+                        direction: canModify
+                            ? DismissDirection.endToStart
+                            : DismissDirection.none,
                         background: Container(
                           alignment: Alignment.centerRight,
                           padding: const EdgeInsets.only(right: 20),
@@ -155,16 +200,40 @@ class _RecordsPageState extends State<RecordsPage> {
                               color: Colors.white),
                         ),
                         onDismissed: (_) {
-                          records.deleteRecord(record.id);
+                          if (canModify) {
+                            records.deleteRecord(record.id);
+                          }
                         },
                         child: RecordCard(
                           record: record,
+                          isPlaying: isPlaying,
+                          progress: progress == null
+                              ? null
+                              : progress.clamp(0.0, 1.0),
+                          onPlayTap: () => _togglePlayRecord(record),
                           onTap: () {
                             if(!isPro && index >= 3) return;
+                            Duration position = Duration.zero;
+                            // if (_playingRecordId == record.id && _player.playing) {
+                            //   position = _position;
+                            // }
+                            // _playingRecordId = record.id;
+                            if (_playingRecordId == record.id){
+                              position = _position;
+                            }else{
+                              _playingRecordId = record.id;
+                            }
                             Navigator.of(context).push(
                               MaterialPageRoute(
-                                builder: (_) =>
-                                    RecordDetailPage(record: record),
+                                builder: (_){
+                                  return RecordDetailPage(
+                                    record: record,
+                                    position: position,
+                                    positionCallback: positionChanged,
+                                    stateCallback: stateChanged,
+                                  );
+                                }
+
                               ),
                             );
                           },

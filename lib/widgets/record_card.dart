@@ -1,17 +1,24 @@
 import 'package:flutter/material.dart';
 import '../models/noise_record.dart';
+import 'mini_waveform_chart.dart';
 import 'waveform_chart.dart';
 
 class RecordCard extends StatelessWidget {
   final NoiseRecord record;
   final VoidCallback? onTap;
   final bool isLocked;
+  final VoidCallback? onPlayTap;
+  final bool isPlaying;
+  final double? progress; // 0..1
 
   const RecordCard({
     super.key,
     required this.record,
     this.onTap,
     this.isLocked = false,
+    this.onPlayTap,
+    this.isPlaying = false,
+    this.progress,
   });
 
   // Color _getWaveformColor() {
@@ -75,17 +82,20 @@ class RecordCard extends StatelessWidget {
                 Row(
                   children: [
                     // Play button
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF3A3A3C),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.play_arrow,
-                        color: Colors.white,
-                        size: 20,
+                    GestureDetector(
+                      onTap: isLocked ? null : onPlayTap,
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFF3A3A3C),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isPlaying ? Icons.pause : Icons.play_arrow,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -102,6 +112,8 @@ class RecordCard extends StatelessWidget {
                           data: record.waveformData,
                           height: 36,
                           lineColor: _getWaveformColor(),
+                          progress: progress,
+                          progressColor: const Color(0xFF00BCD4),
                         ),
                       ),
                     ),

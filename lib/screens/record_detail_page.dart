@@ -1,14 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:provider/provider.dart';
+
 import '../l10n/app_localizations.dart';
 import '../models/noise_record.dart';
 import '../providers/records_provider.dart';
-import '../widgets/waveform_chart.dart';
+import '../services/audio_player_service.dart';
+import '../widgets/mini_waveform_chart.dart';
 
 class RecordDetailPage extends StatefulWidget {
   final NoiseRecord record;
-
-  const RecordDetailPage({super.key, required this.record});
+  final Duration position;
+  final Function positionCallback;
+  final Function stateCallback;
+  const RecordDetailPage({
+    super.key,
+    required this.record,
+    required this.position,
+    required this.positionCallback,
+    required this.stateCallback
+  });
 
   @override
   State<RecordDetailPage> createState() => _RecordDetailPageState();
@@ -16,11 +27,63 @@ class RecordDetailPage extends StatefulWidget {
 
 class _RecordDetailPageState extends State<RecordDetailPage> {
   late NoiseRecord _record;
+  AudioPlayer? _player;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  bool _isPlaying = false;
+
+  @override
+  void dispose() {
+    // TODO: implement dispose
+    stop();
+    super.dispose();
+  }
+
+  void stop(){
+    if(_isPlaying){
+      _player!.pause();
+    }
+  }
 
   @override
   void initState() {
     super.initState();
+    _position = widget.position;
     _record = widget.record;
+    _initPlayer();
+  }
+
+  Future<void> _initPlayer() async {
+    if (_record.audioFilePath == null) return;
+    final player = AudioPlayerService.instance.player;
+    _player = player;
+
+    try {
+      if(_position == Duration.zero){
+        await player.setFilePath(_record.audioFilePath!);
+        await player.pause();
+      }
+      _duration = player.duration ?? Duration(seconds: _record.durationSeconds);
+      setState(() {});
+
+      player.positionStream.listen((pos) {
+        widget.positionCallback(pos);
+        if (!mounted) return;
+        setState(() {
+          _position = pos;
+        });
+      });
+      player.playerStateStream.listen((state) {
+        widget.stateCallback(state);
+        if (!mounted) return;
+        setState(() {
+          _isPlaying = state.playing &&
+              state.processingState != ProcessingState.completed;
+        });
+      });
+    } catch (_) {
+      // Ignore playback init errors.
+    }
   }
 
   Color _getWaveformColor() {
@@ -70,15 +133,37 @@ class _RecordDetailPageState extends State<RecordDetailPage> {
                     Row(
                       children: [
                         // Play button
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFF3A3A3C),
-                            shape: BoxShape.circle,
+                        GestureDetector(
+                          onTap: _record.audioFilePath == null
+                              ? null
+                              : () async {
+                                  if (_player == null) {
+                                    await _initPlayer();
+                                  }
+                                  if (_player == null) return;
+                                  if (_isPlaying) {
+                                    await _player!.pause();
+                                  } else {
+                                    if(_duration - _position < Duration(seconds: 2)){
+                                      _position = Duration.zero;
+                                    }
+                                    await _player!.seek(_position);//Duration.zero
+                                    await _player!.play();
+                                  }
+                                },
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: const BoxDecoration(
+                              color: Color(0xFF3A3A3C),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              _isPlaying ? Icons.pause : Icons.play_arrow,
+                              color: Colors.white,
+                              size: 22,
+                            ),
                           ),
-                          child: const Icon(Icons.play_arrow,
-                              color: Colors.white, size: 22),
                         ),
                         const SizedBox(width: 8),
                         // Waveform
@@ -95,6 +180,12 @@ class _RecordDetailPageState extends State<RecordDetailPage> {
                               data: _record.waveformData,
                               height: 36,
                               lineColor: _getWaveformColor(),
+                              progress: _duration.inMilliseconds > 0
+                                  ? (_position.inMilliseconds /
+                                          _duration.inMilliseconds)
+                                      .clamp(0.0, 1.0)
+                                  : null,
+                              progressColor: const Color(0xFF00BCD4),
                             ),
                           ),
                         ),
@@ -104,13 +195,19 @@ class _RecordDetailPageState extends State<RecordDetailPage> {
                     Row(
                       children: [
                         const SizedBox(width: 48),
-                        const Text('00:00',
-                            style:
-                                TextStyle(color: Colors.grey, fontSize: 12)),
+                        Text(
+                          _formatDuration(_position),
+                          style: const TextStyle(
+                              color: Colors.grey, fontSize: 12),
+                        ),
                         const Spacer(),
-                        Text(_record.formattedDuration,
-                            style: const TextStyle(
-                                color: Colors.grey, fontSize: 12)),
+                        Text(
+                          _duration == Duration.zero
+                              ? _record.formattedDuration
+                              : _formatDuration(_duration),
+                          style: const TextStyle(
+                              color: Colors.grey, fontSize: 12),
+                        ),
                       ],
                     ),
                   ],
@@ -228,6 +325,13 @@ class _RecordDetailPageState extends State<RecordDetailPage> {
         ),
       ),
     );
+  }
+
+  String _formatDuration(Duration d) {
+    final totalSeconds = d.inSeconds;
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
   }
 
   Future<void> _editName(BuildContext context) async {

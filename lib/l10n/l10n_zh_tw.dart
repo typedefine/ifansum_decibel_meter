@@ -46,6 +46,7 @@ const Map<String, String> l10nZhTW = {
   'unlock_free': '免費解鎖',
   'limit_time_title':'錄製時長限制',
   'limit_time_content':'  時長超過20秒限制，升級專業版即可無限制使用',
+  'limit_use_times':'剩餘可使用次數:',
   'limit_time_free':'免費試用',
   'limit_time_last30s':'保存最後20秒',
   'limit_time_close':'關閉',
@@ -98,6 +99,8 @@ const Map<String, String> l10nZhTW = {
   'trial_button': '免費試用3天',
   'trial_price': '然後¥28/月，隨時取消',
   'privacy_policy': '隱私政策',
+  'privacy_policy_url':'privacy-policy-zh-hk.html',
   'user_agreement': '使用者協議',
+  'user_agreement_url': 'terms-of-service-zh-hk.html',
   'restore_purchases': '恢復購買',
 };
