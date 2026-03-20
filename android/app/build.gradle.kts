@@ -32,12 +32,50 @@ android {
         multiDexEnabled = true
     }
 
-    buildTypes {
-        release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+
+    signingConfigs {
+//        release {
+//            storeFile = file('../decibel_meter_release_key-key.jks')
+//            storePassword = '123456'
+//            keyAlias = 'decibel_meter_release'
+//            keyPassword = '123456'
+//        }
+
+        create("release") {
+            storeFile = file("../decibel_meter_release_key.keystore")
+            storePassword = "123456"
+            keyAlias = "decibel_meter_release"
+            keyPassword = "123456"
         }
+
+    }
+
+    buildTypes {
+//        release {
+//            // TODO: Add your own signing config for the release build.
+//            // Signing with the debug keys for now, so `flutter run --release` works.
+////            signingConfig = signingConfigs.getByName("debug")
+//            signingConfig = signingConfigs.release
+//        }
+//        debug{
+//            signingConfig = signingConfigs.debug
+//        }
+
+        getByName("debug") {
+//            signingConfig = signingConfigs.getByName("debug")
+            isDebuggable = true
+            isMinifyEnabled = false
+            isShrinkResources = false
+        }
+
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("release")
+            //关闭混淆
+            isMinifyEnabled = true
+            //删除无用资源
+            isShrinkResources = true
+        }
+
     }
 }
 

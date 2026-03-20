@@ -109,9 +109,10 @@ class _RecordsPageState extends State<RecordsPage> {
       if(_player.playing){
         await _player.pause();
       }else{
+        await _player.setFilePath(path);
         await _player.play();
       }
-    }else{
+    } else{
       _playingRecordId = record.id;
       _position = Duration.zero;
       _duration = Duration.zero;

@@ -1,11 +1,26 @@
 import 'dart:async';
+import 'package:flutter/material.dart';
 import 'package:noise_meter/noise_meter.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class AudioService {
+
+  static AudioService? _instance;
+
+  AudioService._internal(){
+
+  }
+
+  factory AudioService(){
+    _instance ??= AudioService._internal();
+    return _instance!;
+  }
+
+
   NoiseMeter? _noiseMeter;
   StreamSubscription<NoiseReading>? _noiseSubscription;
 
+  int _recordSeconds = 0;
   double _currentDecibel = 0.0;
   double _maxDecibel = 0.0;
   double _minDecibel = double.infinity;
@@ -14,6 +29,7 @@ class AudioService {
   int _readingCount = 0;
   final List<double> _waveformData = [];
 
+  int get recordSeconds => _recordSeconds;
   double get currentDecibel => _currentDecibel;
   double get maxDecibel => _maxDecibel;
   double get minDecibel => _minDecibel == double.infinity ? 0.0 : _minDecibel;
@@ -62,7 +78,12 @@ class AudioService {
     _noiseSubscription = null;
   }
 
+  void recordSecondsAdd(){
+    _recordSeconds++;
+  }
+
   void _reset() {
+    _recordSeconds = 0;
     _currentDecibel = 0.0;
     _maxDecibel = 0.0;
     _minDecibel = double.infinity;

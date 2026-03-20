@@ -1,4 +1,7 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:ifansum_decibel_meter/services/location_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SettingsProvider extends ChangeNotifier {
@@ -9,7 +12,7 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   // Locale
-  Locale _locale = const Locale('zh', 'CN');
+  Locale _locale = ui.PlatformDispatcher.instance.locale;//const Locale('zh', 'CN');
   Locale get locale => _locale;
 
   // Pro status
@@ -53,7 +56,7 @@ class SettingsProvider extends ChangeNotifier {
         _locale = const Locale('zh', 'TW');
         break;
       default:
-        _locale = const Locale('zh', 'CN');
+        _locale = ui.PlatformDispatcher.instance.locale;//const Locale('zh', 'CN');
     }
     _isPro = _prefs.getBool('is_pro') ?? false;
     _mediaSaveCount = _prefs.getInt('media_save_count') ?? 0;
@@ -74,6 +77,7 @@ class SettingsProvider extends ChangeNotifier {
       code = 'zh_TW';
     }
     await _prefs.setString('locale', code);
+    LocationService().setLocale(locale);
     notifyListeners();
   }
 

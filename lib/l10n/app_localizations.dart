@@ -69,11 +69,20 @@ class AppLocalizations {
   String get photo => translate('photo');
   String get video => translate('video');
   String get relocate => translate('relocate');
+  String get relocating => translate('relocating');
   String get flip => translate('flip');
   String get maxLabel => translate('max_label');
   String get minLabel => translate('min_label');
   String get avgLabel => translate('avg_label');
   String get durationLabel => translate('duration_label');
+  String get cameraMerge => translate('camera_merge');
+  String get cameraOk => translate('camera_ok');
+
+  //Preview
+  String get previewSave => translate('preview_save');
+  String get previewSaveAlbum => translate('preview_save_album');
+  String get previewSaveStorage => translate('preview_save_storage');
+  String get previewSaveFailure => translate('preview_save_failure');
 
   // Records
   String get records => translate('records');

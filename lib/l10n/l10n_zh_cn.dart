@@ -32,11 +32,20 @@ const Map<String, String> l10nZhCN = {
   'photo': '照片',
   'video': '视频',
   'relocate': '重新定位',
+  'relocating': '在定位中……',
   'flip': '翻转',
   'max_label': '最大',
   'min_label': '最小',
   'avg_label': '平均',
   'duration_label': '时长',
+  'camera_merge':'水印合成中',
+  'camera_ok':'确认',
+
+  //Preview
+  'preview_save':'保存',
+  'preview_save_album':'已保存到相册',
+  'preview_save_storage':'需要存储权限',
+  'preview_save_failure':'视频加载失败',
 
   // Records
   'noise_record_prefix': '噪音记录',

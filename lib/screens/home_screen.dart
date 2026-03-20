@@ -44,10 +44,10 @@ class _HomeScreenState extends State<HomeScreen> {
         child: BottomNavigationBar(
           currentIndex: settings.curPageIndex,//_currentIndex,
           onTap: (index){
-            settings.setCurPageIndex(index);
             if(index != 1){
               // setState(() => _currentIndex = index);
               // setState(() {});
+              settings.setCurPageIndex(index);
             }else{
               Navigator.of(context, rootNavigator: true).push(
                 MaterialPageRoute(

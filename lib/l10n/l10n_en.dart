@@ -38,11 +38,20 @@ const Map<String, String> l10nEn = {
   'photo': 'Photo',
   'video': 'Video',
   'relocate': 'Relocate',
+  'relocating': 'Relocating',
   'flip': 'Flip',
   'max_label': 'Max',
   'min_label': 'Min',
   'avg_label': 'Avg',
   'duration_label': 'Duration',
+  'camera_merge':'Watermark synthesis in progress',
+  'camera_ok':'confirm',
+
+  //Preview
+  'preview_save': 'Save',
+  'preview_save_album': 'Saved to album',
+  'preview_save_storage': 'Storage permission required',
+  'preview_save_failure': 'Video loading failed',
 
   // Records
   'noise_record_prefix': 'Noise Record',

@@ -37,7 +37,10 @@ dependencies:
   #  noise_meter: ^6.0.0
   noise_meter: ^5.1.0
   camera: ^0.12.0
+#  amap_flutter_location: ^3.0.0
+  fl_amap: ^3.4.4
   geolocator: ^14.0.2
+#  google_maps_webservice: ^0.0.20 # 请使用最新稳定
   geocoding: ^4.0.0
   #  permission_handler: ^11.3.0
   permission_handler: ^12.0.1
@@ -51,15 +54,23 @@ dependencies:
   record: ^6.2.0
   just_audio: ^0.10.5
   saver_gallery: ^4.1.0
+#  image_gallery_saver: ^2.0.0
+  video_player: ^2.8.0
+  chewie: ^1.13.0
   http: ^1.2.0
   in_app_purchase: ^3.2.3
-#  flutter_gb_in_app_purchases: ^1.0.0
+#  flutter_gb_in_app_purchases: ^1.2.0
   image: ^4.8.0
+#  ffmpeg_kit_flutter_new: ^3.0.1
   ffmpeg_kit_flutter_new: ^4.1.0
   webview_flutter: ^4.13.1  # 最新版本
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  in_app_recorder: ^0.0.9
+#  widget_recorder_plus: ^1.0.2
+#  flutter_widget_recorder: ^0.1.0
+#  flutter_ffmpeg: ^0.4.2
 
 dev_dependencies:
   flutter_test:
